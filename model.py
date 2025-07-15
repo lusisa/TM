@@ -43,6 +43,37 @@ def get_input_token_length(message: str, chat_history: list[tuple[str, str]], sy
     #logger.info("input_ids=%s",input_ids)
     return input_ids.shape[-1]
 
+def run(message: str,
+        chat_history: list[tuple[str, str]],
+        system_prompt: str,
+        max_new_tokens: int = 1024,
+        temperature: float = 0.8,
+        top_p: float = 0.95,
+        top_k: int = 50) -> Iterator[str]:
+    prompt = get_prompt(message, chat_history, system_prompt)
+    inputs = tokenizer([prompt], return_tensors='pt', add_special_tokens=False).to(device)
+
+    streamer = TextIteratorStreamer(tokenizer,
+                                    timeout=15.,
+                                    skip_prompt=True,
+                                    skip_special_tokens=True)
+    generate_kwargs = dict(
+        inputs,
+        streamer=streamer,
+        max_new_tokens=max_new_tokens,
+        do_sample=True,
+        top_p=top_p,
+        top_k=top_k,
+        temperature=temperature,
+        num_beams=1,
+    )
+    t = Thread(target=model.generate, kwargs=generate_kwargs)
+    t.start()
+
+    outputs = []
+    for text in streamer:
+        outputs.append(text)
+        yield "".join(outputs)
 
 
 
